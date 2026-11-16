@@ -56,7 +56,9 @@ everything-kiro/
 │   ├── example-spec/             # A real, complete .kiro/specs/password-reset/ example
 │   ├── fullstack-webapp/         # Example project-level Kiro config (MCP, hooks, steering)
 │   ├── AGENTS.md                 # AGENTS.md pattern: root, subdir, and infra examples
-│   └── permissions.yaml          # permissions.yaml reference — copy to .kiro/settings/ or ~/.kiro/settings/
+│   ├── permissions.yaml          # annotated reference — copy to ~/.kiro/settings/permissions.yaml
+│   ├── sandbox.json              # local command sandbox example
+│   └── workflows/                # workflow recipe skeletons
 │
 ├── INSTALL.md
 ├── CONTRIBUTING.md
@@ -78,25 +80,15 @@ inclusion: always        # default — every conversation
 # inclusion: fileMatch
 # fileMatchPattern: "**/*.api.ts"
 # inclusion: manual      # loaded via slash command or #reference, not automatically
+# inclusion: auto        # loaded when the request matches `description` (also needs `name`)
 ---
 ```
 
-`manual` steering files show up as slash commands (`/filename`). This replaced the old "manual hook trigger" concept entirely.
+`manual` and `auto` steering files show up as slash commands (`/filename`). This replaced the old "manual hook trigger" concept entirely. Custom agents do **not** load steering automatically; add `resources: ["file://.kiro/steering/**/*.md"]` to an agent that needs it.
 
 ### AGENTS.md
 
-Place an `AGENTS.md` file anywhere in your workspace to give Kiro directory-scoped instructions — conventions, restrictions, stack details. A root-level `AGENTS.md` applies workspace-wide; nested ones narrow scope to their subtree. Instructions merge from parent to child; more specific files win on conflicts. Added in **IDE 1.0.309**.
-
-```
-my-project/
-├── AGENTS.md          ← whole project
-├── src/
-│   └── AGENTS.md      ← src/ and below
-└── infra/
-    └── AGENTS.md      ← infra only
-```
-
-See [`examples/AGENTS.md`](examples/AGENTS.md) for root, API-layer, and infra examples.
+Kiro supports the [AGENTS.md](https://agents.md) standard: always-included markdown steering with no inclusion modes. It is picked up from the workspace root and `~/.kiro/steering/`, and (since **IDE 1.0.309**) from subdirectories, so a file can sit next to the code it describes. The docs don't define precedence between nested files, so keep them consistent. See [`examples/AGENTS.md`](examples/AGENTS.md).
 
 ### Hooks
 
@@ -115,11 +107,9 @@ Hooks are versioned JSON files at `.kiro/hooks/*.json` (workspace) or `~/.kiro/h
 }
 ```
 
-Triggers: `SessionStart`, `Stop`, `UserPromptSubmit`, `PreToolUse`, `PostToolUse`, `PreTaskExec`, `PostTaskExec`, `PostFileCreate`, `PostFileSave`, `PostFileDelete`. `PreToolUse`, `UserPromptSubmit`, and `PreTaskExec` can **block** — a command action exiting with code 2 stops the operation. See [`hooks/README.md`](hooks/README.md) for the full reference.
+Triggers: `SessionStart`, `Stop`, `UserPromptSubmit`, `PreToolUse`, `PostToolUse`, `PreTaskExec`, `PostTaskExec`, `PostFileCreate`, `PostFileSave`, `PostFileDelete`, `PreCompact`, `PostCompact`. `PreToolUse`, `UserPromptSubmit`, `PreTaskExec`, and `PreCompact` can **block** — a command action exiting with code 2 stops the operation. See [`hooks/README.md`](hooks/README.md) for the full reference.
 
-Global (user-level) hooks apply across every workspace. Added in **IDE 1.0.182**.
-
-Hooks also fire on **agent-driven file changes** (not just user saves). Added in **IDE 1.0.116**.
+Global (user-level) hooks apply across every workspace (**IDE 1.0.182**). Hooks also fire on agent-driven file changes (**IDE 1.0.116**). `PreCompact` and `PostCompact` triggers (**IDE 1.4.121**, CLI 3.1) run around conversation compaction; a pre-compaction hook can cancel it by exiting with code 2, and neither takes a matcher.
 
 ### Permissions
 
@@ -128,7 +118,9 @@ A capability-based system that controls what the agent can read, write, execute,
 - `~/.kiro/settings/permissions.yaml` — user scope, all projects
 - `~/.kiro/workspace-roots/<hash>/permissions.yaml` — workspace scope, one project
 
-Workspace permissions are stored *outside* the repo (per-user) so a cloned repo cannot inject rules.
+There is no in-repo permissions file. Workspace permissions are stored *outside* the repo (per-user) so a cloned repo cannot inject rules, and the agent cannot write to either location. Workspaces are untrusted until you trust them; until then Kiro doesn't load the workspace's custom agents, steering, MCP config, or skills.
+
+Since **IDE 1.4.154**, the Autopilot toggle can become a permission mode menu (Supervised, Accept file changes, Approve for me). In Approve for me, a model judges only the actions your deny/ask/allow rules don't settle.
 
 ```yaml
 rules:
@@ -140,7 +132,7 @@ rules:
     effect: deny
 ```
 
-Capabilities: `fs_read`, `fs_write`, `shell`, `web_fetch`, `web_search`, `mcp`, `subagent`, `skill`, `power`. Priority: `deny > ask > allow`. See [`examples/permissions.yaml`](examples/permissions.yaml) for a full annotated reference.
+Capabilities: `fs_read`, `fs_write`, `shell`, `web_fetch`, `web_search`, `mcp`, `subagent`, `skill`, `power`, `context`, `diagnostics`, `sandbox_network`. Priority: `deny > ask > allow > evaluate`; the most restrictive match wins across all scopes. Shell commands are split on `;`, `&&`, `||`, `|` before matching. See [`examples/permissions.yaml`](examples/permissions.yaml) for a full annotated reference.
 
 ### Custom Agents (IDE 1.0 format)
 
@@ -193,6 +185,39 @@ An experimental chat-first layout for directing multiple parallel agent sessions
 
 Run a session in the cloud alongside local ones. Start from Agent Focus Mode, pick the repositories it works against, and keep working after closing your laptop. Added in **IDE 1.0.293**.
 
+### Memory
+
+Kiro can carry repository conventions, corrections, and ruled-out approaches between sessions (**IDE 1.4.0**). The setting defaults to Off since 1.4.10; browse what Kiro remembers in the Memory view. Sub-agents get read-only access to memories (1.4.121).
+
+### Workflows
+
+A workflow runs a graph of agents in background sessions while you keep working in the parent chat. Each step has its own context, a reviewer doesn't inherit the coder's reasoning, and you can inspect, pause, or steer any step while it runs.
+
+- **Recipes** live in `.kiro/workflows/*.workflow.{json,yaml,yml}` (project), `~/.kiro/workflows/` (user), or bundled by Kiro. Describe the outcome in chat and Kiro proposes a graph; save it as a recipe to reuse.
+- **Nodes**: `step` (run an agent), `sequence` (ordered steps), `repeat` (loop until a condition or cap), `parallel` (independent branches), `watch` (poll an external system without model turns).
+- **Built-in agents**: `wf-planner`, `wf-coder`, `wf-design`, `wf-design-reviewer`, `wf-review-aggregator`, `wf-pr-submitter`, `wf-pr-responder`, `wf-auto-researcher`, `semantic_reviewer`. Tool access comes from each agent's definition.
+- **Use workflows**: controls how readily Kiro starts one: *Only when asked*, *Only for large tasks*, *As much as possible* (IDE 1.4.26).
+
+Example shapes: investigate (read-only report), feature-pipeline (requirements → design/review → code/review → validate), troubleshoot-until-verified (bounded loop), publish-and-respond (PR watch loop). See [`examples/workflows/`](examples/workflows/) for an adaptable skeleton and the [workflow docs](https://kiro.dev/docs/workflows/).
+
+### Local command sandbox
+
+Limits what shell commands and stdio MCP servers can reach. The harness stays outside; only the command and its children are sandboxed. Enable in `~/.kiro/settings/sandbox.json` or `<workspace>/.kiro/settings/sandbox.json`:
+
+```json
+{
+  "enabled": true,
+  "networkAccess": "DEFAULT_BLOCKED",
+  "mcpSandboxing": true
+}
+```
+
+`networkAccess` modes: `DEFAULT_BLOCKED` (only `sandbox_network` allow rules), `COMMON_DEPENDENCIES` (common dev hosts allowed), `DEFAULT_ALLOWED` (no host filter). Host rules under `sandbox_network` in permissions.yaml are first-match. MCP sandboxing wraps stdio servers; HTTP/SSE servers are not affected.
+
+Platform: macOS uses Seatbelt via `sandbox-exec`; Linux needs `bwrap`; Windows needs a one-time admin setup. See [`examples/sandbox.json`](examples/sandbox.json) and the [sandbox docs](https://kiro.dev/docs/sandbox/).
+
+### Markdown Review
+
 ### Cloud Configuration Sync
 
 Steering files, custom agents, skills, powers, and hooks can be synced to your Kiro account and accessed across the IDE and Agent Focus. Cloud-managed items show a cloud indicator and open as read-only with an "Edit in web" action. Added in **IDE 1.0.437**.
@@ -236,7 +261,6 @@ See [CONTRIBUTING.md](CONTRIBUTING.md). Match the real schema (check kiro.dev/do
 - [Kiro Changelog](https://kiro.dev/changelog/) — check here before assuming a schema is current
 - [Official Powers registry](https://github.com/kirodotdev/powers)
 - [Model Context Protocol](https://modelcontextprotocol.io)
-- Inspired by [everything-claude-code](https://github.com/affaan-m/everything-claude-code)
 
 ---
 

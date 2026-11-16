@@ -1,8 +1,15 @@
 # Everything Kiro — Status
 
-## Current status: updated for Kiro IDE 1.0+ through September 2026
+## Current status: tracked through Kiro IDE 1.4.178 and CLI 3.3.0 (changelog entries dated up to Nov 12, 2026)
 
-Schemas verified against kiro.dev docs and the official changelog. This pass adds IDE 1.0 features: permissions, AGENTS.md, updated agent format with `tools` tags, Agent Focus Mode, Cloud Sessions, Cloud Configuration Sync, and Agent Plugin support for Powers.
+Schemas checked against kiro.dev docs and the official IDE/CLI changelogs.
+
+## Latest pass: corrections and IDE 1.4 / CLI 3 coverage
+
+- **Fixed `examples/permissions.yaml`**: it told users to place a workspace file at `.kiro/settings/permissions.yaml`, which Kiro doesn't read. Rules live in `~/.kiro/settings/permissions.yaml` (user) or `~/.kiro/workspace-roots/<hash>/` (workspace). Removed `curl * | sh` patterns that can't match because Kiro splits pipes before matching, and removed an allow for `.kiro/hooks/**` that always prompts anyway.
+- **Fixed `examples/AGENTS.md`**: removed an unsupported claim that nested files "merge" with the more specific one winning. The docs only say each file is loaded as steering.
+- **Added**: `PreCompact`/`PostCompact` hooks, `inclusion: auto` steering, Memory, Workflows, Markdown Review, Approve for me, workspace trust, and the note that custom agents don't load steering unless `resources` lists it.
+- **Not changed**: the 8 agents (their frontmatter was checked against the configuration reference).
 
 ## What's included
 
@@ -13,7 +20,7 @@ Schemas verified against kiro.dev docs and the official changelog. This pass add
 | Hooks (`.kiro/hooks/*.json`) | 12 | v1 JSON schema, PascalCase triggers — see `hooks/README.md` |
 | Powers (`powers/*`) | 3 | development-power, devops-power (Knowledge Base), database-power (Guided MCP) |
 | Skills (`skills/**/*.md`) | 8 | development-workflows, language-patterns, infrastructure |
-| Examples (`examples/*`) | 4 | example-spec, fullstack-webapp, AGENTS.md patterns, permissions.yaml reference |
+| Examples (`examples/*`) | 6 | example-spec, fullstack-webapp, AGENTS.md, permissions.yaml, sandbox.json, workflows/ |
 | Documentation | README, INSTALL, CONTRIBUTING, CHANGELOG, STATUS | cross-checked against actual files |
 
 ## What changed in this pass (2026-09-04)
@@ -36,5 +43,7 @@ Schemas verified against kiro.dev docs and the official changelog. This pass add
 
 - Language-specific skills beyond TypeScript/Python/React (Go, Rust, Java) — not added.
 - No CI workflow validating hook JSON syntax or dead markdown links — worth adding if this grows.
-- `permissions.yaml` placed at `examples/` rather than `.kiro/settings/` because Kiro's hardcoded scope blocks agent writes to `.kiro/settings/`. Copy it manually.
+- `examples/permissions.yaml` can't be installed from the repo: Kiro denies agent writes to its settings directories, and workspace rules live outside the repo. Copy it to `~/.kiro/settings/` yourself.
+- The hooks docs page didn't mention compaction triggers when fetched; `PreCompact`/`PostCompact` names come from the CLI changelog and Kiro's hook tooling. Verify in the IDE's hook editor.
+- No agent in `agents/` loads steering via `resources`. Add it per agent if you want that.
 - Cloud Configuration Sync and Cloud Sessions are documented but no cloud-specific config is included — those are account-level features managed in Kiro Web.

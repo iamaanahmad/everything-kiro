@@ -1,25 +1,24 @@
 # AGENTS.md — directory-scoped agent instructions
 
-> **What this file is:** Kiro reads `AGENTS.md` files placed anywhere in your workspace and applies the instructions inside them when the agent is working in that directory tree. This is the same concept as `.cursorrules` or `CLAUDE.md` — scoped context without a steering file.
+> **What this file is:** Kiro supports the [AGENTS.md](https://agents.md) standard. An `AGENTS.md` is plain markdown steering that is always included (it does not support `inclusion:` front matter).
 >
-> Added in **IDE 1.0.309** (August 2026). A root-level `AGENTS.md` applies workspace-wide; nested ones narrow scope to that subtree.
+> Kiro picks up `AGENTS.md` from the workspace root and from `~/.kiro/steering/` (global). Since **IDE 1.0.309** it also discovers `AGENTS.md` files in subdirectories and loads each one as steering context alongside your other steering files ([steering docs](https://kiro.dev/docs/steering/)).
 
 ---
 
-## How it works
+## Layout
 
 ```
 my-project/
-├── AGENTS.md              ← applies to the whole project
+├── AGENTS.md              ← workspace root
 ├── src/
-│   ├── AGENTS.md          ← overrides/extends for src/ and below
 │   └── api/
-│       └── AGENTS.md      ← even more specific rules for the api layer
+│       └── AGENTS.md      ← sits next to the code it describes
 └── infra/
-    └── AGENTS.md          ← infra-specific conventions
+    └── AGENTS.md
 ```
 
-Instructions from nested files are merged with parent instructions. More specific files take precedence when there's a conflict.
+The docs do not specify precedence between nested files, so avoid contradictory instructions across levels. File references written inside an `AGENTS.md` resolve relative to the folder that contains it (see the steering docs for the reference syntax).
 
 ---
 
@@ -104,6 +103,7 @@ All responses must use this shape:
 
 ## Tips
 
-- Keep instructions concise and actionable — the agent reads the whole file on every relevant turn.
-- `AGENTS.md` is complementary to `.kiro/steering/`: steering files are for project-wide conventions shared across sessions; `AGENTS.md` is for directory-local rules that live right next to the code they govern.
+- Keep instructions concise. The file is always included, so every line costs context.
+- Use `.kiro/steering/` instead when you need `fileMatch`, `manual`, or `auto` inclusion modes. Use `AGENTS.md` for always-on rules, or for compatibility with other agent tools that read the same file.
+- Custom agents do not load steering automatically. Add `resources: ["file://.kiro/steering/**/*.md"]` to an agent's config if it should see steering files.
 - Commit `AGENTS.md` files to version control so the whole team benefits.

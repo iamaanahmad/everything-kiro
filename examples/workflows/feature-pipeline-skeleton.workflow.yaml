@@ -1,0 +1,129 @@
+name: deliver-feature-skeleton
+description: Requirements → design/review loop → plan → implement/review loop → validate
+
+inputs:
+  task: prompt
+  worktree_path: string
+  run_id: string
+
+steps:
+  - type: step
+    id: setup
+    agent: wf-coder
+    prompt: >
+      Verify that {{worktree_path}} is an absolute path to an isolated worktree.
+      Create {{worktree_path}}/.kiro/workflow-runs/{{run_id}} for this run.
+      Do not change the primary checkout. Report the selected path.
+
+  - type: step
+    id: requirements
+    agent: wf-design
+    artifacts:
+      requirements: "{{worktree_path}}/.kiro/workflow-runs/{{run_id}}/requirements.md"
+    prompt: >
+      In {{worktree_path}}, write testable requirements for {{task}} to
+      {{worktree_path}}/.kiro/workflow-runs/{{run_id}}/requirements.md.
+
+  - type: repeat
+    id: design-loop
+    maxIterations: 3
+    onMaxIterations: abort
+    stopCondition:
+      fileCheck:
+        path: "{{worktree_path}}/.kiro/workflow-runs/{{run_id}}/design-review.json"
+        jsonPath: verdict
+        value: APPROVED
+    steps:
+      - type: step
+        id: design-draft
+        agent: wf-design
+        artifacts:
+          design: "{{worktree_path}}/.kiro/workflow-runs/{{run_id}}/design.md"
+        prompt: >
+          In {{worktree_path}}, read {{artifacts.requirements}}.
+          Draft or revise the design and write it to {{worktree_path}}/.kiro/workflow-runs/{{run_id}}/design.md.
+      - type: step
+        id: design-review
+        agent: wf-design-reviewer
+        artifacts:
+          design_review: "{{worktree_path}}/.kiro/workflow-runs/{{run_id}}/design-review.json"
+        prompt: >
+          In {{worktree_path}}, review {{artifacts.design}} against {{artifacts.requirements}}.
+          Write {{worktree_path}}/.kiro/workflow-runs/{{run_id}}/design-review.json with verdict APPROVED or REVISE and the findings.
+
+  - type: step
+    id: plan
+    agent: wf-planner
+    artifacts:
+      plan: "{{worktree_path}}/.kiro/workflow-runs/{{run_id}}/plan.md"
+    prompt: >
+      In {{worktree_path}}, write an ordered implementation and validation plan
+      from {{artifacts.requirements}} and {{artifacts.design}} to
+      {{worktree_path}}/.kiro/workflow-runs/{{run_id}}/plan.md.
+
+  - type: repeat
+    id: code-loop
+    maxIterations: 3
+    onMaxIterations: abort
+    stopCondition:
+      fileCheck:
+        path: "{{worktree_path}}/.kiro/workflow-runs/{{run_id}}/code-review.json"
+        jsonPath: verdict
+        value: APPROVED
+    steps:
+      - type: step
+        id: implement
+        agent: wf-coder
+        artifacts:
+          code_summary: "{{worktree_path}}/.kiro/workflow-runs/{{run_id}}/code-summary.md"
+        prompt: >
+          Implement {{artifacts.plan}} in {{worktree_path}} and run relevant checks.
+          Write {{worktree_path}}/.kiro/workflow-runs/{{run_id}}/code-summary.md with changed files, tests run, and remaining risks.
+      - type: parallel
+        id: code-reviews
+        joinPolicy: allSettled
+        branches:
+          - type: step
+            id: review-a
+            agent: semantic_reviewer
+            artifacts:
+              review_a: "{{worktree_path}}/.kiro/workflow-runs/{{run_id}}/review-a.md"
+            prompt: >
+              Independently review the implementation in {{worktree_path}} using {{artifacts.code_summary}}.
+              Write findings to {{worktree_path}}/.kiro/workflow-runs/{{run_id}}/review-a.md.
+          - type: step
+            id: review-b
+            agent: semantic_reviewer
+            artifacts:
+              review_b: "{{worktree_path}}/.kiro/workflow-runs/{{run_id}}/review-b.md"
+            prompt: >
+              Independently review the implementation in {{worktree_path}} using {{artifacts.code_summary}}.
+              Write findings to {{worktree_path}}/.kiro/workflow-runs/{{run_id}}/review-b.md.
+      - type: step
+        id: code-aggregate
+        agent: wf-review-aggregator
+        artifacts:
+          code_review: "{{worktree_path}}/.kiro/workflow-runs/{{run_id}}/code-review.json"
+        prompt: >
+          In {{worktree_path}}, read {{artifacts.review_a}} and {{artifacts.review_b}}.
+          Write {{worktree_path}}/.kiro/workflow-runs/{{run_id}}/code-review.json with verdict APPROVED or REVISE, deduplicated findings.
+
+  - type: repeat
+    id: validate-gate
+    maxIterations: 1
+    onMaxIterations: abort
+    stopCondition:
+      fileCheck:
+        path: "{{worktree_path}}/.kiro/workflow-runs/{{run_id}}/validation.json"
+        jsonPath: verdict
+        value: PASS
+    steps:
+      - type: step
+        id: validate
+        agent: wf-coder
+        artifacts:
+          validation_report: "{{worktree_path}}/.kiro/workflow-runs/{{run_id}}/validation.md"
+          validation: "{{worktree_path}}/.kiro/workflow-runs/{{run_id}}/validation.json"
+        prompt: >
+          In {{worktree_path}}, validate the implementation against {{artifacts.requirements}} and {{artifacts.code_summary}}.
+          Run the required checks. Write {{worktree_path}}/.kiro/workflow-runs/{{run_id}}/validation.json with verdict PASS or FAIL and evidence.

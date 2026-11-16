@@ -53,11 +53,13 @@ If you're migrating hooks created before IDE 1.0, open the Agent Hooks panel —
 | `PostFileCreate` | A new file is created (matcher = file path) |
 | `PostFileSave` | An existing file is saved (matcher = file path) |
 | `PostFileDelete` | A file is deleted (matcher = file path) |
+| `PreCompact` | Before conversation compaction (can cancel with exit 2; no matcher). IDE 1.4.121+, CLI 3.1+ |
+| `PostCompact` | After compaction; output is added to the conversation so context the summary dropped can be restored. No matcher |
 
 ## Exit-code semantics (command actions)
 
 - **Exit 0** — success. For `SessionStart`, `UserPromptSubmit`, and `PreToolUse`, stdout is forwarded into context.
-- **Exit 2** — blocks the action. Only meaningful for `PreToolUse`, `UserPromptSubmit`, and `PreTaskExec`. Stderr is returned to the agent as the reason.
+- **Exit 2** — blocks the action. Only meaningful for `PreToolUse`, `UserPromptSubmit`, `PreTaskExec`, and `PreCompact`. Stderr is returned to the agent as the reason.
 - **Any other exit code** — treated as a silent failure; the action proceeds.
 
 For `PreToolUse`, a command can also exit 0 and print a JSON decision instead of blocking outright:

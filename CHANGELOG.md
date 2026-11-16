@@ -1,5 +1,34 @@
 # Changelog
 
+## [2026-11-12] Corrections and IDE 1.4 / CLI 3.3 coverage
+
+Tracks the official changelogs through IDE 1.4.178 and CLI 3.3.0, and corrects errors in the entry below.
+
+### Fixed
+
+- `examples/permissions.yaml`: wrong install location (no in-repo `.kiro/settings/permissions.yaml` exists; use `~/.kiro/settings/` or the per-user `~/.kiro/workspace-roots/<hash>/`), unmatchable pipe patterns, and a redundant `.kiro/hooks/**` allow.
+- `examples/AGENTS.md`: removed an unsupported merge/precedence claim; now says AGENTS.md is always-included steering from the root, `~/.kiro/steering/`, and subdirectories.
+- README: permission capability list and priority (`deny > ask > allow > evaluate`), and the agent file tree.
+
+### Added
+
+- `PreCompact` / `PostCompact` hook triggers in `hooks/README.md` and README (IDE 1.4.121, CLI 3.1).
+- README sections: Memory (IDE 1.4.0), Workflows and Markdown Review (IDE 1.3.11, 1.4.x), Approve for me and workspace trust under Permissions (IDE 1.4.154), `inclusion: auto` steering, and the note that custom agents need `resources` to load steering.
+
+### Release reference
+
+| Version | Date | Relevant additions |
+|---|---|---|
+| IDE 1.3.11 | Oct 15 2026 | Markdown Review for all users |
+| IDE 1.4.0 | Oct 19 2026 | Memory |
+| IDE 1.4.26 | Oct 22 2026 | Use workflows control |
+| IDE 1.4.86 | Oct 28 2026 | Windows system-wide installers |
+| IDE 1.4.121 | Nov 5 2026 | Pre/Post Compaction hooks, read-only Memory for sub-agents |
+| IDE 1.4.154 | Nov 10 2026 | Approve for me, permission mode menu, organization-managed settings |
+| IDE 1.4.178 | Nov 12 2026 | Workflow tab, skills and steering reloaded after compaction |
+| CLI 3.1.0 / 3.3.0 | Nov 5 / Nov 12 2026 | PreCompact/PostCompact hooks, configurable auto-compaction threshold |
+| Docs | Nov 2026 | Local command sandbox docs, Workflows docs with authoring guide and pattern examples |
+
 ## [2026-09-04] IDE 1.0+ feature pass — permissions, AGENTS.md, updated agent format
 
 This release tracks Kiro IDE changes from 1.0 (June 2026) through 1.0.437 (September 2026), adding the new features that landed in that window and updating existing components to match current schemas.

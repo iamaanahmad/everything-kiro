@@ -1,0 +1,6 @@
+{
+  "$comment": "Local command sandbox — limits what shell commands and stdio MCP servers can reach.",
+  "enabled": true,
+  "networkAccess": "DEFAULT_BLOCKED",
+  "mcpSandboxing": true
+}

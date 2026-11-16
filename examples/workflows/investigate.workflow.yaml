@@ -1,0 +1,18 @@
+name: investigate-question
+description: Read-only investigation → cited report → summary in parent chat
+
+inputs:
+  brief: prompt
+  report_path: file
+
+steps:
+  - type: step
+    id: investigate
+    agent: wf-planner
+    artifacts:
+      report: "{{report_path}}"
+    prompt: >
+      READ-ONLY investigation; do not edit code or commit.
+      Investigate {{brief}} and write findings to {{report_path}}.
+      Lead with the answer, cite files and symbols, list risks and recommendations,
+      then call send_message with severity success and the key finding.

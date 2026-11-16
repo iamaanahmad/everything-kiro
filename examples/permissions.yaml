@@ -1,22 +1,37 @@
-# permissions.yaml — example for workspace-scoped agent permissions
+# permissions.yaml — annotated reference
 #
-# Place this file at:
-#   .kiro/settings/permissions.yaml        (workspace scope — specific to one project)
-#   ~/.kiro/settings/permissions.yaml      (user scope — applies to every workspace)
+# WHERE IT GOES
+#   User scope (all workspaces):  ~/.kiro/settings/permissions.yaml
+#   Workspace scope (one project): ~/.kiro/workspace-roots/<hash>/permissions.yaml
 #
-# Evaluated against every file read, shell command, and MCP call the agent makes.
-# Priority: deny > ask > allow — a deny rule always wins regardless of scope.
-# Workspace permissions are stored per-user outside the repo so a cloned repo
-# cannot inject rules — trust is configured on your own machine.
+# There is no in-repo permissions file. Kiro stores workspace rules per user,
+# outside the repository, so a cloned repo cannot grant itself permissions.
+# The easiest way to create workspace rules is to choose "Always allow" /
+# "Always deny" in an approval prompt and pick "This workspace".
+# Kiro also hard-denies agent writes to ~/.kiro/settings/ and
+# ~/.kiro/workspace-roots/, so copy this file yourself.
+#
+# HOW RULES ARE EVALUATED
+#   deny > ask > allow > evaluate. The most restrictive matching effect wins,
+#   regardless of scope. `evaluate` is added only by the approve-for-me preset.
+#   Creating this file adds to Kiro's built-in defaults; it does not replace them.
+#   Writes to .git/**, .vscode/**, and the .kiro agents, hooks, workflows, and
+#   powers directories always ask, whatever you allow here.
+#
+# PATTERNS
+#   fs_read / fs_write: `*` stays within one path component, `**` crosses
+#     directories, {a,b} and [abc] work.
+#   shell / web / mcp: only `*` is supported (no `**`, `?`, or classes).
+#   Shell commands are split on ; && || | before matching and each part is
+#   checked on its own, so a rule cannot match a pipe such as `curl x | sh`.
+#   Deny the pieces (`curl *`, `sh *`) if you need to block that.
 #
 # Docs: https://kiro.dev/docs/permissions/
 
 rules:
-  # ---------------------------------------------------------------
-  # DENY — floor rules; nothing overrides these
-  # ---------------------------------------------------------------
+  # ---- DENY: always wins ------------------------------------------------
 
-  # Never let the agent write secret/key files
+  # Never let the agent write secrets or key material
   - capability: fs_write
     match:
       - "**/.env"
@@ -27,72 +42,66 @@ rules:
       - "**/*.pfx"
     effect: deny
 
-  # Block destructive shell commands
+  # Optionally keep secrets out of the agent's context entirely
+  - capability: fs_read
+    match:
+      - "**/.env"
+      - "**/.env.*"
+      - "**/*.pem"
+      - "secrets/**"
+    effect: deny
+
+  # Destructive or privileged shell commands
   - capability: shell
     match:
       - "rm -rf *"
       - "sudo *"
       - "chmod 777 *"
-      - "curl * | sh"
-      - "wget * | sh"
     effect: deny
 
-  # ---------------------------------------------------------------
-  # ALLOW — pre-approve common safe operations so the agent doesn't
-  # prompt for every routine action
-  # ---------------------------------------------------------------
+  # ---- ALLOW: pre-approve routine work ----------------------------------
 
-  # Read all files freely
   - capability: fs_read
     effect: allow
 
-  # Write inside typical source and config directories
   - capability: fs_write
     match:
       - "src/**"
       - "tests/**"
       - "scripts/**"
-      - ".kiro/steering/**"
-      - ".kiro/hooks/**"
+      - "docs/**"
       - "*.md"
-      - "*.json"
-      - "*.yaml"
-      - "*.yml"
-      - "*.toml"
     effect: allow
 
-  # Allow common dev tooling without prompting
+  # Common dev tooling, with one exception
   - capability: shell
     match:
       - "git *"
       - "npm *"
       - "npx *"
-      - "yarn *"
-      - "pnpm *"
       - "node *"
       - "python *"
-      - "pip *"
       - "uv *"
+    exclude:
+      - "npm publish*"
+      - "git push*"
     effect: allow
 
-  # Web access — allow searches and public doc fetches
   - capability: web_search
     effect: allow
 
   - capability: web_fetch
     effect: allow
 
-  # MCP — allow all tools on configured servers; refine per-server below if needed
-  - capability: mcp
-    effect: allow
-
-  # Example: allow everything from one MCP server except a specific dangerous tool
+  # All tools from one trusted MCP server, minus a dangerous one
   # - capability: mcp
   #   match: ["my-db-server/*"]
   #   exclude: ["my-db-server/drop-table"]
   #   effect: allow
 
-  # ---------------------------------------------------------------
-  # ASK — prompt for anything not explicitly covered above
-  # (the Kiro default for shell commands not matched above)
-  # ---------------------------------------------------------------
+  # ---- ASK: anything not matched above prompts by default ---------------
+
+  # Optional: let Kiro judge actions no rule covers (IDE 1.4.154+, needs the
+  # trust classifier). Your deny/ask/allow rules above still decide first.
+  # policies:
+  #   - approve-for-me
